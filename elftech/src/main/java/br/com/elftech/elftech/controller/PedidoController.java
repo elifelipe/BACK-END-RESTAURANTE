@@ -2,6 +2,7 @@ package br.com.elftech.elftech.controller;
 
 import br.com.elftech.elftech.dto.CriarPedidoRequest;
 import br.com.elftech.elftech.dto.PedidoResponseDTO;
+import br.com.elftech.elftech.dto.PedidosPorMesResponseDTO; // Importe o novo DTO
 import br.com.elftech.elftech.model.Pedido;
 import br.com.elftech.elftech.service.PedidoService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,5 +55,18 @@ public class PedidoController {
     public ResponseEntity<PedidoResponseDTO> entregarPedido(@PathVariable UUID restauranteId, @PathVariable UUID pedidoId) {
         PedidoResponseDTO pedidoAtualizado = pedidoService.marcarComoEntregue(restauranteId, pedidoId);
         return ResponseEntity.ok(pedidoAtualizado);
+    }
+
+    /**
+     * NOVO ENDPOINT: Retorna a evolução dos pedidos do ano por mês para um restaurante.
+     * Corresponde ao endpoint que o frontend está buscando.
+     * Rota: /api/restaurantes/{restauranteId}/financeiro/pedidos-por-mes?ano={ano}
+     */
+    @GetMapping("/restaurantes/{restauranteId}/financeiro/pedidos-por-mes")
+    public ResponseEntity<List<PedidosPorMesResponseDTO>> getPedidosPorMesDoAno(
+            @PathVariable UUID restauranteId,
+            @RequestParam int ano) {
+        List<PedidosPorMesResponseDTO> dadosAnuais = pedidoService.getPedidosPorMesDoAno(restauranteId, ano);
+        return ResponseEntity.ok(dadosAnuais);
     }
 }

@@ -3,6 +3,7 @@ package br.com.elftech.elftech.service;
 import br.com.elftech.elftech.dto.CriarPedidoRequest;
 import br.com.elftech.elftech.dto.ItemDoPedidoDTO;
 import br.com.elftech.elftech.dto.PedidoResponseDTO;
+import br.com.elftech.elftech.dto.PedidosPorMesResponseDTO; // Importe o novo DTO
 import br.com.elftech.elftech.dto.StatusPedidoResponseDTO;
 import br.com.elftech.elftech.model.*;
 import br.com.elftech.elftech.repository.ItemCardapioRepository;
@@ -17,6 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Month;
+import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -80,8 +85,6 @@ public class PedidoService {
         return pedidoRepository.save(pedido);
     }
 
-    // ... O restante da classe continua igual ...
-
     public List<PedidoResponseDTO> listarPedidosPorRestaurante(UUID restauranteId) {
         validarAcessoRestaurante(restauranteId);
         List<Pedido> pedidos = pedidoRepository.findByRestauranteIdOrderByDataPedidoDesc(restauranteId);
@@ -118,11 +121,41 @@ public class PedidoService {
         return new PedidoResponseDTO(pedidoSalvo);
     }
 
-
     public StatusPedidoResponseDTO getStatusPedido(UUID pedidoId) {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new EntityNotFoundException("Pedido com ID " + pedidoId + " não encontrado."));
         return new StatusPedidoResponseDTO(pedido.getStatus());
+    }
+
+    /**
+     * NOVO MÉTODO: Retorna o total de pedidos por mês para um determinado ano.
+     * Considera apenas pedidos com status CONCLUIDO ou ENTREGUE.
+     * @param restauranteId O ID do restaurante.
+     * @param ano O ano para o qual os dados serão buscados.
+     * @return Uma lista de PedidosPorMesResponseDTO com o total de pedidos por mês.
+     */
+    public List<PedidosPorMesResponseDTO> getPedidosPorMesDoAno(UUID restauranteId, int ano) {
+        validarAcessoRestaurante(restauranteId);
+
+        List<PedidosPorMesResponseDTO> dadosAnuais = new ArrayList<>();
+        List<Pedido.StatusPedido> statusValidos = Arrays.asList(Pedido.StatusPedido.CONCLUIDO, Pedido.StatusPedido.ENTREGUE);
+
+        for (Month month : Month.values()) {
+            YearMonth yearMonth = YearMonth.of(ano, month);
+            LocalDateTime inicioDoMes = yearMonth.atDay(1).atStartOfDay();
+            LocalDateTime fimDoMes = yearMonth.atEndOfMonth().atTime(23, 59, 59);
+
+            List<Pedido> pedidosNoMes = pedidoRepository.findByRestauranteIdAndDataPedidoBetweenAndStatusIn(
+                    restauranteId,
+                    inicioDoMes,
+                    fimDoMes,
+                    statusValidos
+            );
+
+            long totalPedidos = pedidosNoMes.size();
+            dadosAnuais.add(new PedidosPorMesResponseDTO(month.getDisplayName(java.time.format.TextStyle.FULL, new java.util.Locale("pt", "BR")), totalPedidos));
+        }
+        return dadosAnuais;
     }
 
     private Pedido getPedidoValidado(UUID restauranteId, UUID pedidoId) {
@@ -139,6 +172,11 @@ public class PedidoService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
             throw new SecurityException("Acesso negado: usuário não autenticado.");
+        }
+        // Assumindo que o principal é um objeto Usuario ou que possui um método para obter o ID do restaurante
+        // Esta parte pode precisar de ajuste dependendo da sua implementação de segurança (UserDetails, etc.)
+        if (!(authentication.getPrincipal() instanceof Usuario)) {
+            throw new SecurityException("Tipo de principal inesperado. Não é um objeto Usuario.");
         }
         Usuario usuarioLogado = (Usuario) authentication.getPrincipal();
         if (usuarioLogado.getRestaurante() == null) {
