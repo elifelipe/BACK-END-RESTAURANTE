@@ -17,13 +17,9 @@ public class Pedido {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    // --- NOVO CAMPO ---
-    // Armazena o número sequencial do pedido para um restaurante específico (Ex: Pedido #1, #2, etc.)
     @Column(nullable = false)
     private Long numeroPedido;
 
-    // --- NOVO CAMPO ---
-    // Armazena o número da mesa onde o pedido foi feito
     @Column(nullable = false)
     private Integer numeroMesa;
 
@@ -41,12 +37,17 @@ public class Pedido {
     @Column(nullable = false)
     private BigDecimal valorTotal;
 
+    // --- NOVO CAMPO ADICIONADO ---
+    @Column(nullable = false)
+    private BigDecimal lucro;
+
     @Column(nullable = false)
     private LocalDateTime dataPedido;
 
     public enum StatusPedido {
         PENDENTE,
-        CONCLUIDO,
+        CONCLUIDO, // Pronto para Entrega
+        ENTREGUE,  // Entregue na mesa
         CANCELADO
     }
 }

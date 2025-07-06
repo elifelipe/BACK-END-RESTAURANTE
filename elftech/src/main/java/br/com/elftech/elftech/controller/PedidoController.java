@@ -21,12 +21,10 @@ public class PedidoController {
 
     /**
      * Endpoint PÚBLICO para um cliente criar um novo pedido.
-     * A resposta é um DTO limpo, sem referências circulares.
      */
     @PostMapping("/public/pedidos")
     public ResponseEntity<PedidoResponseDTO> criarPedido(@RequestBody CriarPedidoRequest dados) {
         Pedido novoPedidoEntidade = pedidoService.criarPedido(dados);
-        // Converte a entidade salva para um DTO de resposta antes de enviar
         return ResponseEntity.status(HttpStatus.CREATED).body(new PedidoResponseDTO(novoPedidoEntidade));
     }
 
@@ -35,18 +33,26 @@ public class PedidoController {
      */
     @GetMapping("/restaurantes/{restauranteId}/pedidos")
     public ResponseEntity<List<PedidoResponseDTO>> listarPedidos(@PathVariable UUID restauranteId) {
-        // O serviço já retorna a lista de DTOs pronta para ser enviada
         List<PedidoResponseDTO> pedidos = pedidoService.listarPedidosPorRestaurante(restauranteId);
         return ResponseEntity.ok(pedidos);
     }
 
     /**
-     * Endpoint PROTEGIDO para o admin marcar um pedido como concluído.
+     * Endpoint PROTEGIDO para o admin marcar um pedido como concluído (pronto para entrega).
      */
     @PutMapping("/restaurantes/{restauranteId}/pedidos/{pedidoId}/concluir")
     public ResponseEntity<PedidoResponseDTO> concluirPedido(@PathVariable UUID restauranteId, @PathVariable UUID pedidoId) {
-        // O serviço já retorna o DTO do pedido atualizado
         PedidoResponseDTO pedidoAtualizado = pedidoService.marcarComoConcluido(restauranteId, pedidoId);
+        return ResponseEntity.ok(pedidoAtualizado);
+    }
+
+    /**
+     * NOVO ENDPOINT: Marca um pedido como ENTREGUE.
+     * Acessado pelo Painel do Garçom.
+     */
+    @PutMapping("/restaurantes/{restauranteId}/pedidos/{pedidoId}/entregar")
+    public ResponseEntity<PedidoResponseDTO> entregarPedido(@PathVariable UUID restauranteId, @PathVariable UUID pedidoId) {
+        PedidoResponseDTO pedidoAtualizado = pedidoService.marcarComoEntregue(restauranteId, pedidoId);
         return ResponseEntity.ok(pedidoAtualizado);
     }
 }

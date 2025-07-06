@@ -33,28 +33,21 @@ public class PedidoService {
     @Autowired
     private ItemCardapioRepository itemCardapioRepository;
 
-    /**
-     * Cria um novo pedido. Este método é chamado por um endpoint público.
-     * @param dados Os dados da requisição contendo o restaurante e os itens.
-     * @return A entidade Pedido recém-criada.
-     */
     @Transactional
     public Pedido criarPedido(CriarPedidoRequest dados) {
         Restaurante restaurante = restauranteRepository.findById(dados.restauranteId())
                 .orElseThrow(() -> new EntityNotFoundException("Restaurante não encontrado"));
 
-        // --- LÓGICA DE NUMERAÇÃO DO PEDIDO ---
-        // 1. Busca o último pedido feito para este restaurante.
         long proximoNumero = pedidoRepository.findTopByRestauranteIdOrderByNumeroPedidoDesc(dados.restauranteId())
-                .map(ultimoPedido -> ultimoPedido.getNumeroPedido() + 1) // 2. Se existir, pega o número dele e soma 1.
-                .orElse(1L); // 3. Se não existir (primeiro pedido), começa com 1.
+                .map(ultimoPedido -> ultimoPedido.getNumeroPedido() + 1)
+                .orElse(1L);
 
         Pedido pedido = new Pedido();
         pedido.setRestaurante(restaurante);
         pedido.setDataPedido(LocalDateTime.now());
         pedido.setStatus(Pedido.StatusPedido.PENDENTE);
-        pedido.setNumeroPedido(proximoNumero); // Define o número sequencial
-        pedido.setNumeroMesa(dados.numeroMesa()); // Define o número da mesa vindo do DTO
+        pedido.setNumeroPedido(proximoNumero);
+        pedido.setNumeroMesa(dados.numeroMesa());
 
         BigDecimal valorTotal = BigDecimal.ZERO;
 
@@ -70,42 +63,40 @@ public class PedidoService {
             itemPedido.setPedido(pedido);
             itemPedido.setItemCardapio(itemCardapio);
             itemPedido.setQuantidade(itemDTO.quantidade());
-            itemPedido.setPrecoUnitario(itemCardapio.getPreco()); // Preço do banco de dados, para segurança
+            itemPedido.setPrecoUnitario(itemCardapio.getPreco());
 
             pedido.getItens().add(itemPedido);
             valorTotal = valorTotal.add(itemCardapio.getPreco().multiply(BigDecimal.valueOf(itemDTO.quantidade())));
         }
 
         pedido.setValorTotal(valorTotal);
+
+        // --- LÓGICA DE CÁLCULO DE LUCRO ADICIONADA ---
+        // Exemplo: Lucro bruto de 30% sobre o valor total.
+        // Você pode ajustar esta regra de negócio conforme necessário.
+        BigDecimal lucroCalculado = valorTotal.multiply(new BigDecimal("0.30"));
+        pedido.setLucro(lucroCalculado);
+
         return pedidoRepository.save(pedido);
     }
 
-    /**
-     * Lista os pedidos de um restaurante específico para o painel de admin.
-     * Requer autenticação.
-     * @return Uma lista de PedidoResponseDTO.
-     */
+    // ... O restante da classe continua igual ...
+
     public List<PedidoResponseDTO> listarPedidosPorRestaurante(UUID restauranteId) {
-        validarAcessoRestaurante(restauranteId); // Garante que o admin só veja seus próprios pedidos
+        validarAcessoRestaurante(restauranteId);
         List<Pedido> pedidos = pedidoRepository.findByRestauranteIdOrderByDataPedidoDesc(restauranteId);
         return pedidos.stream()
                 .map(PedidoResponseDTO::new)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Marca um pedido como CONCLUIDO.
-     * Requer autenticação.
-     * @return O PedidoResponseDTO atualizado.
-     */
     @Transactional
     public PedidoResponseDTO marcarComoConcluido(UUID restauranteId, UUID pedidoId) {
-        validarAcessoRestaurante(restauranteId); // Garante a permissão
-        Pedido pedido = pedidoRepository.findById(pedidoId)
-                .orElseThrow(() -> new EntityNotFoundException("Pedido com ID " + pedidoId + " não encontrado."));
+        validarAcessoRestaurante(restauranteId);
+        Pedido pedido = getPedidoValidado(restauranteId, pedidoId);
 
-        if (!pedido.getRestaurante().getId().equals(restauranteId)) {
-            throw new SecurityException("Este pedido não pertence ao restaurante informado.");
+        if (pedido.getStatus() != Pedido.StatusPedido.PENDENTE) {
+            throw new IllegalStateException("Apenas pedidos pendentes podem ser marcados como concluídos.");
         }
 
         pedido.setStatus(Pedido.StatusPedido.CONCLUIDO);
@@ -113,15 +104,37 @@ public class PedidoService {
         return new PedidoResponseDTO(pedidoSalvo);
     }
 
+    @Transactional
+    public PedidoResponseDTO marcarComoEntregue(UUID restauranteId, UUID pedidoId) {
+        validarAcessoRestaurante(restauranteId); // Garante a permissão
+        Pedido pedido = getPedidoValidado(restauranteId, pedidoId);
+
+        if (pedido.getStatus() != Pedido.StatusPedido.CONCLUIDO) {
+            throw new IllegalStateException("O pedido não pode ser marcado como entregue, pois não está pronto.");
+        }
+
+        pedido.setStatus(Pedido.StatusPedido.ENTREGUE);
+        Pedido pedidoSalvo = pedidoRepository.save(pedido);
+        return new PedidoResponseDTO(pedidoSalvo);
+    }
+
+
     public StatusPedidoResponseDTO getStatusPedido(UUID pedidoId) {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new EntityNotFoundException("Pedido com ID " + pedidoId + " não encontrado."));
         return new StatusPedidoResponseDTO(pedido.getStatus());
     }
 
-    /**
-     * Valida se o usuário logado pertence ao restaurante que está tentando acessar.
-     */
+    private Pedido getPedidoValidado(UUID restauranteId, UUID pedidoId) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new EntityNotFoundException("Pedido com ID " + pedidoId + " não encontrado."));
+
+        if (!pedido.getRestaurante().getId().equals(restauranteId)) {
+            throw new SecurityException("Este pedido não pertence ao restaurante informado.");
+        }
+        return pedido;
+    }
+
     private void validarAcessoRestaurante(UUID restauranteIdUrl) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
