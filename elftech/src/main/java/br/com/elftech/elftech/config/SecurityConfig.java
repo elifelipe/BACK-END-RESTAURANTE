@@ -39,18 +39,21 @@ public class SecurityConfig {
                     req.requestMatchers(HttpMethod.POST, "/api/restaurantes/**").authenticated();
                     req.requestMatchers(HttpMethod.PUT, "/api/restaurantes/**").authenticated();
                     req.requestMatchers(HttpMethod.DELETE, "/api/restaurantes/**").authenticated();
-                    req.requestMatchers(HttpMethod.POST, "/api/auth/registrar").authenticated();
 
-                    // ---- NOVAS REGRAS DE SEGURANÇA ----
                     // Apenas usuários autenticados podem ver ou deletar outros usuários
                     req.requestMatchers(HttpMethod.GET, "/api/usuarios/**").authenticated();
                     req.requestMatchers(HttpMethod.DELETE, "/api/usuarios/**").authenticated();
 
 
                     // ---- REGRAS PARA ROTAS PÚBLICAS ----
-                    req.requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/restaurantes", "/api/public/pedidos").permitAll();
+                    // O endpoint de login e registro devem ser acessíveis publicamente
+                    req.requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/registrar", "/api/restaurantes", "/api/public/pedidos").permitAll();
                     req.requestMatchers("/api/public/**").permitAll();
-                    req.anyRequest().permitAll();
+
+                    // Se a intenção é que todas as outras rotas sejam protegidas por padrão, use authenticated()
+                    // Caso contrário, se outras rotas devem ser públicas, adicione-as explicitamente.
+                    // Evite anyRequest().permitAll() a menos que você queira um backend totalmente público.
+                    req.anyRequest().authenticated(); // Alterado para exigir autenticação por padrão
                 })
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
@@ -66,8 +69,6 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
-
-
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {

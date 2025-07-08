@@ -1,47 +1,54 @@
+// src/main/java/br/com/elftech/elftech/model/Restaurante.java
 package br.com.elftech.elftech.model;
 
 import jakarta.persistence.*;
-import org.hibernate.annotations.Where;
-
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Where; // Import for @Where annotation
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Data
+@NoArgsConstructor
+@EqualsAndHashCode(of = "id")
 @Entity
 @Table(name = "restaurantes")
-@Where(clause = "ativo = true")
+@Where(clause = "ativo = true") // Added @Where annotation
 public class Restaurante {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    // --- CAMPOS QUE FALTAVAM ADICIONADOS AQUI ---
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String nome;
 
     @Column(nullable = false, unique = true)
     private String cnpj;
 
-    @Column(nullable = false)
+    private String logoUrl;
+
+    @Column(nullable = false) // Added 'ativo' field
     private boolean ativo = true;
-    // --- FIM DOS CAMPOS QUE FALTAVAM ---
 
-    @OneToMany(mappedBy = "restaurante", fetch = FetchType.LAZY)
-    private List<Usuario> usuarios;
+    @OneToMany(mappedBy = "restaurante", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<ItemCardapio> cardapio = new ArrayList<>();
 
-    // Seus Getters e Setters manuais agora funcionarão
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    @OneToMany(mappedBy = "restaurante", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Pedido> pedidos = new ArrayList<>();
 
-    public String getNome() { return nome; }
-    public void setNome(String nome) { this.nome = nome; }
+    // NEW: Relationship with MarketingImage
+    @OneToMany(mappedBy = "restaurante", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<MarketingImage> marketingImages = new ArrayList<>();
 
-    public String getCnpj() { return cnpj; }
-    public void setCnpj(String cnpj) { this.cnpj = cnpj; }
+    // NEW: Relationship with Usuario
+    @OneToMany(mappedBy = "restaurante", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Usuario> usuarios = new ArrayList<>();
 
-    public boolean isAtivo() { return ativo; }
-    public void setAtivo(boolean ativo) { this.ativo = ativo; }
-
-    public List<Usuario> getUsuarios() { return usuarios; }
-    public void setUsuarios(List<Usuario> usuarios) { this.usuarios = usuarios; }
+    public Restaurante(String nome, String cnpj) {
+        this.nome = nome;
+        this.cnpj = cnpj;
+    }
 }
