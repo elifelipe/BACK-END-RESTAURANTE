@@ -35,25 +35,23 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> {
-                    // ---- REGRAS PARA ROTAS PROTEGIDAS ----
-                    req.requestMatchers(HttpMethod.POST, "/api/restaurantes/**").authenticated();
-                    req.requestMatchers(HttpMethod.PUT, "/api/restaurantes/**").authenticated();
-                    req.requestMatchers(HttpMethod.DELETE, "/api/restaurantes/**").authenticated();
-
-                    // Apenas usuários autenticados podem ver ou deletar outros usuários
-                    req.requestMatchers(HttpMethod.GET, "/api/usuarios/**").authenticated();
-                    req.requestMatchers(HttpMethod.DELETE, "/api/usuarios/**").authenticated();
-
-
                     // ---- REGRAS PARA ROTAS PÚBLICAS ----
-                    // O endpoint de login e registro devem ser acessíveis publicamente
-                    req.requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/registrar", "/api/restaurantes", "/api/public/pedidos").permitAll();
+                    // A ordem é importante. Colocamos as permissões públicas primeiro.
+
+                    // Endpoints de autenticação
+                    req.requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/registrar").permitAll();
+
+                    // Endpoints de pagamento e webhooks
+                    req.requestMatchers("/api/payments/**").permitAll();
+
+                    // Endpoints públicos para visualização (cardápio, restaurante, etc.)
+                    // Isso cobre GET /api/public/restaurantes/{id} e outros.
                     req.requestMatchers("/api/public/**").permitAll();
 
-                    // Se a intenção é que todas as outras rotas sejam protegidas por padrão, use authenticated()
-                    // Caso contrário, se outras rotas devem ser públicas, adicione-as explicitamente.
-                    // Evite anyRequest().permitAll() a menos que você queira um backend totalmente público.
-                    req.anyRequest().authenticated(); // Alterado para exigir autenticação por padrão
+
+                    // ---- REGRAS PARA ROTAS PROTEGIDAS ----
+                    // Todas as outras requisições não listadas acima exigirão autenticação.
+                    req.anyRequest().authenticated();
                 })
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
@@ -61,7 +59,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:4200"));
+        configuration.setAllowedOrigins(List.of("http://localhost:4200")); // Permite requisições do seu frontend
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
